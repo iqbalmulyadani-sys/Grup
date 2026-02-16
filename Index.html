@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auto Room Chat</title>
+
+<style>
+body{
+    margin:0;
+    font-family:Arial;
+    background:#0f172a;
+    color:white;
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+}
+header{
+    background:#1e293b;
+    padding:15px;
+    text-align:center;
+}
+#roomInfo{
+    font-size:13px;
+    color:#38bdf8;
+}
+#chat{
+    flex:1;
+    overflow-y:auto;
+    padding:15px;
+}
+.message{
+    background:#1e293b;
+    padding:10px;
+    margin-bottom:10px;
+    border-radius:8px;
+}
+.message b{
+    color:#38bdf8;
+}
+.message small{
+    font-size:11px;
+    color:#94a3b8;
+}
+#inputArea{
+    display:flex;
+    padding:10px;
+    background:#1e293b;
+}
+#messageInput{
+    flex:1;
+    padding:10px;
+    border:none;
+    border-radius:5px;
+}
+button{
+    margin-left:5px;
+    padding:8px 12px;
+    border:none;
+    border-radius:5px;
+    background:#38bdf8;
+    color:white;
+    cursor:pointer;
+}
+button:hover{
+    background:#0ea5e9;
+}
+</style>
+</head>
+<body>
+
+<header>
+🔒 Private Auto Room Chat <br>
+<div id="roomInfo"></div>
+<div id="onlineCount">Online: 0</div>
+<button onclick="copyLink()">Copy Invite Link</button>
+</header>
+
+<div id="chat"></div>
+
+<div id="inputArea">
+    <input type="text" id="messageInput" placeholder="Ketik pesan..." />
+    <button onclick="sendMessage()">Kirim</button>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getDatabase, ref, push, onChildAdded, onValue, set, onDisconnect } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-database.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCq7Fj38-5HHh3iQh5k6onb1flMweeTfSc",
+  authDomain: "grup-ea139.firebaseapp.com",
+  databaseURL: "https://grup-ea139-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "grup-ea139",
+  storageBucket: "grup-ea139.firebasestorage.app",
+  messagingSenderId: "552962725295",
+  appId: "1:552962725295:web:5d8039a0ed6083a8234b5a"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
+
+// =======================
+// AUTO GENERATE ROOM
+// =======================
+const params = new URLSearchParams(window.location.search);
+let roomId = params.get("room");
+
+if(!roomId){
+    roomId = "room-" + Math.random().toString(36).substring(2,8);
+    window.history.replaceState({}, "", "?room=" + roomId);
+}
+
+document.getElementById("roomInfo").innerText = "Room ID: " + roomId;
+
+// =======================
+// USERNAME
+// =======================
+let username = prompt("Masukkan nama kamu:");
+if(!username) username = "User_" + Math.floor(Math.random()*1000);
+
+// =======================
+// LOGIN
+// =======================
+signInAnonymously(auth);
+
+// =======================
+// ONLINE USER SYSTEM
+// =======================
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    const userRef = ref(db, "rooms/" + roomId + "/onlineUsers/" + user.uid);
+
+    set(userRef, { name: username });
+
+    onDisconnect(userRef).remove();
+  }
+});
+
+const onlineRef = ref(db, "rooms/" + roomId + "/onlineUsers");
+
+onValue(onlineRef, (snapshot) => {
+  const count = snapshot.exists() ? Object.keys(snapshot.val()).length : 0;
+  document.getElementById("onlineCount").innerText = "Online: " + count;
+});
+
+// =======================
+// CHAT SYSTEM
+// =======================
+const chatRef = ref(db, "rooms/" + roomId + "/messages");
+
+window.sendMessage = function(){
+  const input = document.getElementById("messageInput");
+  const text = input.value.trim();
+
+  if(text !== ""){
+    push(chatRef,{
+      name: username,
+      message: text,
+      time: new Date().toLocaleTimeString()
+    });
+    input.value = "";
+  }
+}
+
+document.getElementById("messageInput")
+.addEventListener("keypress", function(e){
+  if(e.key === "Enter"){
+    sendMessage();
+  }
+});
+
+onChildAdded(chatRef, (data)=>{
+  const msg = data.val();
+  const chat = document.getElementById("chat");
+
+  chat.innerHTML += `
+    <div class="message">
+      <b>${msg.name}</b><br>
+      ${msg.message}<br>
+      <small>${msg.time}</small>
+    </div>
+  `;
+
+  chat.scrollTop = chat.scrollHeight;
+});
+
+// =======================
+// COPY LINK
+// =======================
+window.copyLink = function(){
+    navigator.clipboard.writeText(window.location.href);
+    alert("Link berhasil disalin!");
+}
+</script>
+
+</body>
+</html>
